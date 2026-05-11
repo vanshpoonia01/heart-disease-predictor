@@ -1,39 +1,18 @@
 import streamlit as st
 import joblib
 import numpy as np
+import pandas as pd
 
-st.set_page_config(
-    page_title="Heart Disease Predictor",
-    page_icon="❤️",
-    layout="wide"
-)
+st.set_page_config(page_title="Heart Disease Predictor", page_icon="❤️", layout="wide")
 
-# Load model
 model = joblib.load("heart_disease_model.pkl")
 scaler = joblib.load("scaler.pkl")
 
-# Custom CSS
 st.markdown("""
 <style>
 .main {
     background: linear-gradient(to right, #0f172a, #1e293b);
 }
-
-.title {
-    text-align: center;
-    font-size: 42px;
-    font-weight: bold;
-    color: white;
-    margin-bottom: 10px;
-}
-
-.subtitle {
-    text-align: center;
-    color: #cbd5e1;
-    font-size: 18px;
-    margin-bottom: 30px;
-}
-
 .stButton > button {
     width: 100%;
     background: linear-gradient(90deg, #ef4444, #dc2626);
@@ -42,106 +21,75 @@ st.markdown("""
     font-weight: bold;
     border-radius: 12px;
     padding: 12px;
-    border: none;
-}
-
-.stButton > button:hover {
-    background: linear-gradient(90deg, #dc2626, #b91c1c);
-}
-
-.block-container {
-    padding-top: 2rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# Header
-st.markdown('<div class="title">❤️ Heart Disease Risk Predictor</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">AI-powered heart disease prediction system</div>', unsafe_allow_html=True)
+st.title("❤️ Heart Disease Risk Predictor")
+st.caption("AI-powered prediction system")
 
-# Layout
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("👤 Personal Information")
     age = st.slider("Age", 18, 100, 40)
-    sex = st.selectbox("Gender", ["Male", "Female"])
-    cp = st.selectbox("Chest Pain Type", [
-        "Typical Angina",
-        "Atypical Angina",
-        "Non-anginal Pain",
-        "Asymptomatic"
-    ])
-    trestbps = st.number_input("Resting Blood Pressure", 80, 250, 120)
-    chol = st.number_input("Cholesterol", 100, 600, 200)
-    fbs = st.selectbox("Fasting Blood Sugar > 120 mg/dl", ["No", "Yes"])
+    sex = st.selectbox("Gender", ["Female", "Male"])
+    chest = st.selectbox("Chest Pain Type", ["ASY", "ATA", "NAP", "TA"])
+    resting_bp = st.number_input("Resting Blood Pressure", 80, 250, 120)
+    chol = st.number_input("Cholesterol", 0, 600, 200)
+    fasting = st.selectbox("Fasting Blood Sugar > 120", [0, 1])
 
 with col2:
-    st.subheader("🩺 Clinical Parameters")
-    restecg = st.selectbox("Rest ECG", [
-        "Normal",
-        "ST-T Wave Abnormality",
-        "Left Ventricular Hypertrophy"
-    ])
-    thalach = st.number_input("Maximum Heart Rate", 60, 250, 150)
-    exang = st.selectbox("Exercise Induced Angina", ["No", "Yes"])
-    oldpeak = st.slider("ST Depression (Oldpeak)", 0.0, 6.5, 1.0)
-    slope = st.selectbox("Slope", ["Upsloping", "Flat", "Downsloping"])
-    ca = st.selectbox("Major Vessels", [0, 1, 2, 3, 4])
-    thal = st.selectbox("Thal", ["Normal", "Fixed Defect", "Reversible Defect"])
+    ecg = st.selectbox("Resting ECG", ["Normal", "ST", "LVH"])
+    maxhr = st.number_input("Maximum Heart Rate", 60, 250, 150)
+    angina = st.selectbox("Exercise Angina", ["N", "Y"])
+    oldpeak = st.slider("Oldpeak", 0.0, 6.5, 1.0)
+    slope = st.selectbox("ST Slope", ["Up", "Flat", "Down"])
 
-# Encoding
-sex = 1 if sex == "Male" else 0
-fbs = 1 if fbs == "Yes" else 0
-exang = 1 if exang == "Yes" else 0
+if st.button("🔍 Predict"):
 
-cp_map = {
-    "Typical Angina": 0,
-    "Atypical Angina": 1,
-    "Non-anginal Pain": 2,
-    "Asymptomatic": 3
-}
+    columns = scaler.feature_names_in_
+    input_df = pd.DataFrame(np.zeros((1, len(columns))), columns=columns)
 
-restecg_map = {
-    "Normal": 0,
-    "ST-T Wave Abnormality": 1,
-    "Left Ventricular Hypertrophy": 2
-}
+    # numeric
+    if "Age" in columns:
+        input_df["Age"] = age
+    if "RestingBP" in columns:
+        input_df["RestingBP"] = resting_bp
+    if "Cholesterol" in columns:
+        input_df["Cholesterol"] = chol
+    if "FastingBS" in columns:
+        input_df["FastingBS"] = fasting
+    if "MaxHR" in columns:
+        input_df["MaxHR"] = maxhr
+    if "Oldpeak" in columns:
+        input_df["Oldpeak"] = oldpeak
 
-slope_map = {
-    "Upsloping": 0,
-    "Flat": 1,
-    "Downsloping": 2
-}
+    # one-hot encoding
+    if sex == "Male" and "Sex_M" in columns:
+        input_df["Sex_M"] = 1
 
-thal_map = {
-    "Normal": 1,
-    "Fixed Defect": 2,
-    "Reversible Defect": 3
-}
+    chest_col = f"ChestPainType_{chest}"
+    if chest_col in columns:
+        input_df[chest_col] = 1
 
-cp = cp_map[cp]
-restecg = restecg_map[restecg]
-slope = slope_map[slope]
-thal = thal_map[thal]
+    ecg_col = f"RestingECG_{ecg}"
+    if ecg_col in columns:
+        input_df[ecg_col] = 1
 
-# Prediction
-if st.button("🔍 Predict Heart Disease Risk"):
-    data = np.array([[age, sex, cp, trestbps, chol, fbs,
-                      restecg, thalach, exang, oldpeak,
-                      slope, ca, thal]])
+    angina_col = f"ExerciseAngina_{angina}"
+    if angina_col in columns:
+        input_df[angina_col] = 1
 
-    scaled_data = scaler.transform(data)
-    prediction = model.predict(scaled_data)
+    slope_col = f"ST_Slope_{slope}"
+    if slope_col in columns:
+        input_df[slope_col] = 1
 
-    st.markdown("---")
+    scaled = scaler.transform(input_df)
+    prediction = model.predict(scaled)
 
     if prediction[0] == 1:
-        st.error("⚠️ High Risk: Heart Disease Detected")
+        st.error("⚠️ Heart Disease Detected")
         st.progress(85)
     else:
-        st.success("✅ Low Risk: No Heart Disease Detected")
-        st.progress(25)
-
-st.markdown("---")
-st.caption("Built with Streamlit • Machine Learning Project")
+        st.success("✅ No Heart Disease Detected")
+        st.progress(20)
